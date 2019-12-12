@@ -1,10 +1,12 @@
 #define LED 13
 
-const int PIEZO_PINS[] = {A1, A2, A3, A4, A5};
+static uint16_t debounce[5] = {0U, 0U, 0U, 0U, 0U};
+static bool key_hit[5] = {false, false, false, false, false};
 
-unsigned long debouncers[5] = {0U, 0U, 0U, 0U, 0U};
+static const uint16_t DEBOUNCE_RELOAD = 250UL;
 
-char piezos = 0;
+static char keys = 0;
+static bool update = false;
 
 void setup() 
 {
@@ -14,6 +16,19 @@ void setup()
   // Wait for the serial port to start (max 3 seconds)
   while(!Serial && (millis() < 3000)) {}
   
+  // Initialize pins and interrupts  
+  pinMode(0,INPUT_PULLUP);
+  pinMode(1,INPUT_PULLUP);
+  pinMode(2,INPUT_PULLUP);
+  pinMode(3,INPUT_PULLUP);
+  pinMode(7,INPUT_PULLUP);
+  
+  attachInterrupt(digitalPinToInterrupt(0), key0ISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(1), key1ISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(2), key2ISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(3), key3ISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(7), key4ISR, FALLING);
+
   // Initialize the LED pin
   pinMode(LED, OUTPUT);
 
@@ -29,44 +44,88 @@ void setup()
 
 void loop() 
 {
-  bool bUpdate = false;
-  
+  static unsigned long last_millis = 0UL;
+
+  // Flash LED every second
   digitalWrite(LED, (millis() % 1000) < 500);
 
-  for (char i = 0; i < 5; i++)
+  if (last_millis != millis())
   {
-    int piezoADC = analogRead(PIEZO_PINS[i]);
-    float piezoVoltage = piezoADC / 1023.0 * 5.0;
+    last_millis = millis();
 
-    unsigned long time_since_last_hit = millis() - debouncers[i];
-
-    // Check if the piezo has been hit
-    if (piezoVoltage > 0.9)
+    for (uint8_t i = 0; i<5; i++)
     {
-      // Only allow the button to trigger every 100ms at most
-      if (time_since_last_hit > 100U)
+      if (key_hit[i])
       {
-        debouncers[i] = millis();
-        piezos |= (1 << i);
-        bUpdate = true;
+        key_hit[i] = false;
+        Serial.println((int)i);
+        keys |= (1 << i);
+        update = true;
       }
-    }
 
-    // After 100ms, clear the button state
-    if (piezos && (1 << i))
-    {
-      if (time_since_last_hit > 100U)
+      if (debounce[i])
       {
-        piezos &= ~(1 << i);
-        bUpdate = true;
+        debounce[i]--;
+        if (debounce[i] == 0)
+        {
+          keys &= ~(1 << i);
+          update = true;
+        }
       }
     }
   }
   
-  SPDR = piezos;
+  SPDR = keys;
 
-  if (bUpdate)
+  if (update)
   {
-    Serial.print("Piezos: "); Serial.println((int)piezos);
+    Serial.print("Piezos: "); Serial.println((int)keys);
+    update = false;
   }
 }
+
+void key0ISR()
+{
+  if (debounce[0] == 0U)
+  {
+    key_hit[0] = true;
+    debounce[0] = DEBOUNCE_RELOAD;
+  }
+}
+
+void key1ISR()
+{
+  if (debounce[1] == 0U)
+  {
+    key_hit[1] = true;
+    debounce[1] = DEBOUNCE_RELOAD;
+  }
+}
+
+void key2ISR()
+{
+  if (debounce[2] == 0U)
+  {
+    key_hit[2] = true;
+    debounce[2] = DEBOUNCE_RELOAD;
+  }
+}
+
+void key3ISR()
+{
+  if (debounce[3] == 0U)
+  {
+    key_hit[3] = true;
+    debounce[3] = DEBOUNCE_RELOAD;
+  }
+}
+
+void key4ISR()
+{
+  if (debounce[4] == 0U)
+  {
+    key_hit[4] = true;
+    debounce[4] = DEBOUNCE_RELOAD;
+  }
+}
+
