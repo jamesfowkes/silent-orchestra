@@ -9,6 +9,8 @@
 #define PIXEL_COUNT 15 * LEDS_PER_STRIP // 15 strips of LED_PER_STRIP LEDs each
 #define PIXEL_PIN 7 // Attached Neopixels to this pin
 
+#define MOTOR_PIN 8
+
 #define RED 32, 0, 0
 #define ORANGE 32, 12, 0
 #define YELLOW 32, 32, 0
@@ -19,6 +21,8 @@
 #define CLARINET 0
 #define HARP 1
 #define XYLOPHONE 2
+
+#define VIBRATE_LENGTH_MS 100UL;
 
 Adafruit_NeoPixel ledStrip(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -45,6 +49,8 @@ bool testMode = false;
 const char rainbow[5][3] = {
   {RED}, {ORANGE}, {YELLOW}, {GREEN}, {BLUE},
 };
+
+static unsigned long motor_timeout = 0UL;
 
 // This function turns on a single LED strip
 static void setStrip(char instrument, char substrip)
@@ -81,10 +87,11 @@ static void handle_spi_input(char spi_input, char * oldvalue, char instrument)
         wTrig.trackPlayPoly(start_number + i + 1);
         Serial.print("Playing "); Serial.print(INSTRUMENT_NAMES[instrument]); Serial.print(" sound ");
         Serial.println((int)(start_number + i+ 1));
+        motor_timeout = millis() + VIBRATE_LENGTH_MS;
       }
       else
       {
-        // Button pressed, stop this sound
+        // Button rel;eased, stop this sound
         clearStrip(instrument, i); // Do LEDs before WAV, so interrupts don't get turned off. This is important.
         wTrig.trackStop(start_number + i+ 1);
         Serial.print("Stopping "); Serial.print(INSTRUMENT_NAMES[instrument]); Serial.print(" sound ");
@@ -128,6 +135,10 @@ void setup() {
 
   ledStrip.begin();
   ledStrip.show();
+
+  pinMode(MOTOR_PIN, 8);
+  digitalWrite(MOTOR_PIN, HIGH);
+
 }
 
 void loop()
@@ -186,6 +197,15 @@ void loop()
   // Deal with the received SPI byte for the xylophone
   handle_spi_input(spi_byte, &oldXylo, XYLOPHONE);
   digitalWrite(xyloSelectPin, HIGH);
+
+  if (motor_timeout > millis())
+  {
+    digitalWrite(MOTOR_PIN, LOW);
+  }
+  else
+  {
+    digitalWrite(MOTOR_PIN, HIGH);  
+  }
 }
 
 /* This code lets us test the hub by sending fake buttons presses
